@@ -496,6 +496,7 @@ set(LSDTT3_CPU_SOURCES
     src/cpu/lsdtt_lem_parameter_rasters_cpu.cpp
     src/cpu/lsdtt_lem_input_grid_cpu.cpp
     src/cpu/lsdtt_lithology_map_cpu.cpp
+    src/cpu/lsdtt_lithology_cuboid_cpu.cpp
     src/cpu/lsdtt_lithology_channel_stats_cpu.cpp
     src/cpu/lsdtt_lithology_relative_erodibility_cpu.cpp
     src/cpu/lsdtt_erodibility_calibration_cpu.cpp
@@ -681,6 +682,7 @@ lsdtt_cli(lsdtt-fetch-river-lines      cli/lsdtt-fetch-river-lines.cpp)
 lsdtt_cli(lsdtt-fetch-erosion-rates    cli/lsdtt-fetch-erosion-rates.cpp)
 lsdtt_cli(lsdtt-lem                    cli/lsdtt-lem.cpp)
 lsdtt_cli(lsdtt-advection-diffusion    cli/lsdtt-advection-diffusion.cpp)
+lsdtt_cli(lsdtt-litho-lem              cli/lsdtt-litho-lem.cpp)
 lsdtt_cli(lsdtt-sediment-routing       cli/lsdtt-sediment-routing.cpp)
 lsdtt_cli(lsdtt-ridgeline-analysis     cli/lsdtt-ridgeline-analysis.cpp)
 lsdtt_cli(lsdtt-basin-surface-metrics  cli/lsdtt-basin-surface-metrics.cpp)
