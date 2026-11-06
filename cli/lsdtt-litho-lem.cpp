@@ -88,11 +88,12 @@ void require(bool condition, const std::string& message)
 }
 
 std::pair<std::string, int> find_latest_intermediate(
-    const std::string& directory, const std::string& prefix)
+    const std::string& directory, const std::string& prefix,
+    const std::string& extension)
 {
     namespace fs = std::filesystem;
     const std::regex pattern(
-        "^" + prefix + "_model_iteration_([0-9]+)\\.tif$");
+        "^" + prefix + "_model_iteration_([0-9]+)\\." + extension + "$");
     int latest = -1;
     std::string latest_path;
     std::error_code error;
@@ -182,7 +183,7 @@ int main(int argc, char* argv[])
         "This loads a grid for a new run and automatically takes n_rows, "
         "n_cols and cell_size_metres from its raster metadata. It is distinct "
         "from automatic continuation: continuation instead discovers the "
-        "highest <write_fname>_model_iteration_N.tif in write_path.",
+        "highest <write_fname>_model_iteration_N raster in write_path.",
         "File I/O", "io", ""};
 
     string_default_map["read_fname"] = "";
@@ -199,9 +200,8 @@ int main(int argc, char* argv[])
     string_default_map["write_output_format"] = "cog";
     help_map["write_output_format"] = {
         "string", "cog",
-        "Raster output: cog, gtiff, same_as_input, png, or both.",
-        "For png or both, elevation is written as PNG; diagnostics also "
-        "include PNG output.",
+        "Elevation output: cog, gtiff, same_as_input, or png.",
+        "Initial, intermediate, and final elevations use this raster format.",
         "File I/O", "io", ""};
 
     // --- Grid settings ---
@@ -412,27 +412,48 @@ int main(int argc, char* argv[])
     help_map["write_hillshade_rasters"] = {
         "bool", "false", "Write hillshade diagnostic rasters.",
         "Written for the initial, intermediate and final topography, in the "
-        "format set by write_output_format.",
+        "format set by diagnostics_write_output_format.",
         "Outputs", "switch", ""};
 
     bool_default_map["write_drainage_area_rasters"] = false;
     help_map["write_drainage_area_rasters"] = {
         "bool", "false", "Write log10 drainage-area diagnostic rasters.",
         "Written for the initial, intermediate and final topography, in the "
-        "format set by write_output_format. Uses the routing "
+        "format set by diagnostics_write_output_format. Uses the routing "
         "model selected by fluvial_incision_model.",
         "Outputs", "switch", ""};
+
+    string_default_map["diagnostics_write_output_format"] = "png";
+    help_map["diagnostics_write_output_format"] = {
+        "string", "png",
+        "Format of hillshade, drainage-area, and lithology diagnostics: "
+        "cog, png, or both.",
+        "Applies to the diagnostic outputs; elevation uses "
+        "write_output_format.",
+        "Outputs", "param", ""};
 
     bool_default_map["write_surface_lithology"] = false;
     help_map["write_surface_lithology"] = {
         "bool", "false", "Write lithology IDs exposed at the surface.",
-        "Written initially, at scheduled iterations, and for the final surface.",
+        "Written initially, at scheduled iterations, and for the final "
+        "surface in diagnostics_write_output_format.",
         "Outputs", "switch", ""};
+    string_default_map["intermediate_surface_lithology_write_path"] = "";
+    help_map["intermediate_surface_lithology_write_path"] = {
+        "string", "", "Optional directory for surface-lithology outputs.",
+        "Empty uses write_path.", "Outputs", "io", ""};
+
     bool_default_map["write_surface_erodibility"] = false;
     help_map["write_surface_erodibility"] = {
         "bool", "false", "Write erodibility exposed at the surface.",
-        "Written initially, at scheduled iterations, and for the final surface.",
+        "Written initially, at scheduled iterations, and for the final "
+        "surface in diagnostics_write_output_format.",
         "Outputs", "switch", ""};
+    string_default_map["intermediate_surface_erodibility_write_path"] = "";
+    help_map["intermediate_surface_erodibility_write_path"] = {
+        "string", "", "Optional directory for surface-erodibility outputs.",
+        "Empty uses write_path.", "Outputs", "io", ""};
+
     string_default_map["lithology_slice_depths_metres"] = "";
     help_map["lithology_slice_depths_metres"] = {
         "string", "", "Horizontal lithology slices to write (m).",
@@ -511,10 +532,12 @@ int main(int argc, char* argv[])
         require(sf.at("write_output_format") == "cog" ||
                     sf.at("write_output_format") == "gtiff" ||
                     sf.at("write_output_format") == "same_as_input" ||
-                    sf.at("write_output_format") == "png" ||
-                    sf.at("write_output_format") == "both",
-                "write_output_format must be cog, gtiff, same_as_input, "
-                "png, or both");
+                    sf.at("write_output_format") == "png",
+                "write_output_format must be cog, gtiff, same_as_input, or png");
+        require(sf.at("diagnostics_write_output_format") == "cog" ||
+                    sf.at("diagnostics_write_output_format") == "png" ||
+                    sf.at("diagnostics_write_output_format") == "both",
+                "diagnostics_write_output_format must be cog, png, or both");
         require(std::isfinite(ff.at("depth_zero_offset_metres")),
                 "depth_zero_offset_metres must be finite");
         require(std::isfinite(ff.at("uplift_rate")),
@@ -604,7 +627,7 @@ int main(int argc, char* argv[])
     meta.set_default_synthetic_georeference();
     lsdtt::lsdtt_data_loader loader;
     const auto latest = find_latest_intermediate(
-        parser.get_write_path(), parser.get_write_fname());
+        parser.get_write_path(), parser.get_write_fname(), "tif");
     int starting_iteration = 0;
     lsdtt::lsdtt_raster_cpu current;
     if (!sf.at("read_path").empty())
@@ -668,24 +691,20 @@ int main(int argc, char* argv[])
             if (current.get_mask()[i] != 0) data[i] = static_cast<float>(ids[i]);
         const std::string suffix = "_lithology_depth_" +
                                    std::to_string(slice_depth) + "m";
-        const std::string path = parser.make_output_path(suffix, ".tif");
-        const std::string slice_format = sf.at("write_output_format");
-        if (slice_format == "cog" || slice_format == "gtiff" ||
-            slice_format == "same_as_input")
-            loader.write_full(data, current.get_meta(), path,
-                lsdtt::resolve_raster_output_format(slice_format));
-        if (slice_format == "both")
+        const std::string slice_format =
+            sf.at("diagnostics_write_output_format");
+        const std::string extension = slice_format == "png" ? ".png" : ".tif";
+        const std::string path = parser.make_output_path(suffix, extension);
+        if (slice_format == "cog" || slice_format == "both")
             loader.write_full(data, current.get_meta(), path,
                               lsdtt::raster_output_format::cog);
         if (slice_format == "png" || slice_format == "both")
         {
-            loader.write_full(data, current.get_meta(),
-                parser.make_output_path(suffix, ".png"),
-                lsdtt::raster_output_format::png);
+            const std::string png_path = parser.make_output_path(suffix, ".png");
+            loader.write_full(data, current.get_meta(), png_path,
+                              lsdtt::raster_output_format::png);
             if (!bf.at("write_intermediate_png_sidecars"))
             {
-                const std::string png_path =
-                    parser.make_output_path(suffix, ".png");
                 std::remove((png_path + ".aux.xml").c_str());
                 std::remove((png_path.substr(0, png_path.size() - 4) +
                              ".pgw").c_str());
@@ -718,9 +737,8 @@ int main(int argc, char* argv[])
                                const std::string& suffix,
                                const std::string& extension)
     {
-        if (directory.empty())
-            return parser.make_output_path(frame + suffix, extension);
-        std::string path = directory;
+        std::string path = directory.empty()
+            ? parser.get_write_path() : directory;
         if (path.back() != '/' && path.back() != '\\') path += '/';
         return path + parser.get_write_fname() + frame + suffix + extension;
     };
@@ -730,31 +748,46 @@ int main(int argc, char* argv[])
         const std::string& path,
         const std::string& output_format)
     {
+        const bool is_png_path = path.size() >= 4 &&
+            path.substr(path.size() - 4) == ".png";
+        const std::string cog_path = is_png_path
+            ? path.substr(0, path.size() - 4) + ".tif" : path;
         if (output_format == "cog")
-            loader.write_full(data, raster_meta, path,
+            loader.write_full(data, raster_meta, cog_path,
                               lsdtt::raster_output_format::cog);
-        else if (output_format == "gtiff")
-            loader.write_full(data, raster_meta, path,
-                              lsdtt::raster_output_format::gtiff);
-        else if (output_format == "same_as_input")
-            loader.write_full(data, raster_meta, path,
-                              lsdtt::raster_output_format::same_as_input);
         if (output_format == "png" || output_format == "both")
         {
-            const std::string png_path = path.substr(0, path.size() - 4) + ".png";
+            const std::string png_path = is_png_path ? path :
+                path.substr(0, path.size() - 4) + ".png";
             loader.write_full(data, raster_meta, png_path,
                               lsdtt::raster_output_format::png);
+            if (!bf.at("write_intermediate_png_sidecars"))
+            {
+                std::remove((png_path + ".aux.xml").c_str());
+                std::remove((png_path.substr(0, png_path.size() - 4) +
+                             ".pgw").c_str());
+                std::remove((png_path.substr(0, png_path.size() - 4) +
+                             ".wld").c_str());
+            }
         }
     };
     auto write_diagnostics = [&](const lsdtt::lsdtt_raster_cpu& raster,
                                  const std::string& frame,
                                  double cumulative_uplift)
     {
-        const std::string& diag_format = sf.at("write_output_format");
+        const std::string& diag_format =
+            sf.at("diagnostics_write_output_format");
         const std::string hill_format =
             bf.at("write_hillshade_rasters") ? diag_format : "none";
         const std::string area_format =
             bf.at("write_drainage_area_rasters") ? diag_format : "none";
+        auto write_png_sidecars = [&](const std::string& path)
+        {
+            if (bf.at("write_intermediate_png_sidecars")) return;
+            std::remove((path + ".aux.xml").c_str());
+            std::remove((path.substr(0, path.size() - 4) + ".pgw").c_str());
+            std::remove((path.substr(0, path.size() - 4) + ".wld").c_str());
+        };
         if (bf.at("write_surface_lithology") ||
             bf.at("write_surface_erodibility"))
         {
@@ -769,43 +802,37 @@ int main(int argc, char* argv[])
                 for (std::size_t i = 0; i < ids.size(); ++i)
                     if (raster.get_mask()[i] != 0)
                         data[i] = static_cast<float>(ids[i]);
+                const std::string extension =
+                    (diag_format == "png") ? ".png" : ".tif";
                 const std::string path = diagnostic_path(
-                    "", frame, "_surface_lithology", ".tif");
+                    sf.at("intermediate_surface_lithology_write_path"),
+                    frame, "_surface_lithology", extension);
                 write_formatted_diagnostic(
                     data, raster.get_meta(), path, diag_format);
                 if (diag_format == "png" || diag_format == "both")
                 {
                     const std::string png_path = diagnostic_path(
-                        "", frame, "_surface_lithology", ".png");
-                    if (!bf.at("write_intermediate_png_sidecars"))
-                    {
-                        std::remove((png_path + ".aux.xml").c_str());
-                        std::remove((png_path.substr(0, png_path.size() - 4) +
-                                     ".pgw").c_str());
-                        std::remove((png_path.substr(0, png_path.size() - 4) +
-                                     ".wld").c_str());
-                    }
+                        sf.at("intermediate_surface_lithology_write_path"),
+                        frame, "_surface_lithology", ".png");
+                    write_png_sidecars(png_path);
                 }
             }
             if (bf.at("write_surface_erodibility"))
             {
                 const auto data = lithology.erodibility_at_depth(depth);
+                const std::string extension =
+                    (diag_format == "png") ? ".png" : ".tif";
                 const std::string path = diagnostic_path(
-                    "", frame, "_surface_erodibility", ".tif");
+                    sf.at("intermediate_surface_erodibility_write_path"),
+                    frame, "_surface_erodibility", extension);
                 write_formatted_diagnostic(
                     data, raster.get_meta(), path, diag_format);
                 if (diag_format == "png" || diag_format == "both")
                 {
                     const std::string png_path = diagnostic_path(
-                        "", frame, "_surface_erodibility", ".png");
-                    if (!bf.at("write_intermediate_png_sidecars"))
-                    {
-                        std::remove((png_path + ".aux.xml").c_str());
-                        std::remove((png_path.substr(0, png_path.size() - 4) +
-                                     ".pgw").c_str());
-                        std::remove((png_path.substr(0, png_path.size() - 4) +
-                                     ".wld").c_str());
-                    }
+                        sf.at("intermediate_surface_erodibility_write_path"),
+                        frame, "_surface_erodibility", ".png");
+                    write_png_sidecars(png_path);
                 }
             }
         }
@@ -813,14 +840,12 @@ int main(int argc, char* argv[])
         {
             const auto hillshade = lsdtt::compute_hillshade(
                 raster, 315.0, 45.0, 1.0);
-            if (hill_format == "cog" || hill_format == "gtiff" ||
-                hill_format == "same_as_input" || hill_format == "both")
+            if (hill_format == "cog" || hill_format == "both")
                 loader.write_full(
                     hillshade.get_data(), hillshade.get_meta(),
                     diagnostic_path(sf.at("intermediate_hillshade_write_path"),
                                     frame, "_hillshade", ".tif"),
-                    hill_format == "both" ? lsdtt::raster_output_format::cog :
-                        lsdtt::resolve_raster_output_format(hill_format));
+                    lsdtt::raster_output_format::cog);
             if (hill_format == "png" || hill_format == "both")
             {
                 const std::string path = diagnostic_path(
@@ -829,14 +854,7 @@ int main(int argc, char* argv[])
                 loader.write_full(
                     hillshade.get_data(), hillshade.get_meta(), path,
                     lsdtt::raster_output_format::png);
-                if (!bf.at("write_intermediate_png_sidecars"))
-                {
-                    std::remove((path + ".aux.xml").c_str());
-                    std::remove(
-                        (path.substr(0, path.size() - 4) + ".pgw").c_str());
-                    std::remove(
-                        (path.substr(0, path.size() - 4) + ".wld").c_str());
-                }
+                write_png_sidecars(path);
             }
         }
         if (area_format != "none")
@@ -876,15 +894,13 @@ int main(int argc, char* argv[])
                     ? area.meta.no_data_value
                     : maximum - std::log10(area.data[i]);
             }
-            if (area_format == "cog" || area_format == "gtiff" ||
-                area_format == "same_as_input" || area_format == "both")
+            if (area_format == "cog" || area_format == "both")
                 loader.write_full(
                     area.data, area.meta,
                     diagnostic_path(
                         sf.at("intermediate_drainage_area_write_path"), frame,
                         "_log10_drainage_area", ".tif"),
-                    area_format == "both" ? lsdtt::raster_output_format::cog :
-                        lsdtt::resolve_raster_output_format(area_format));
+                    lsdtt::raster_output_format::cog);
             if (area_format == "png" || area_format == "both")
             {
                 const std::string path = diagnostic_path(
@@ -892,23 +908,16 @@ int main(int argc, char* argv[])
                     "_log10_drainage_area", ".png");
                 loader.write_full(area.data, area.meta, path,
                                   lsdtt::raster_output_format::png);
-                if (!bf.at("write_intermediate_png_sidecars"))
-                {
-                    std::remove((path + ".aux.xml").c_str());
-                    std::remove(
-                        (path.substr(0, path.size() - 4) + ".pgw").c_str());
-                    std::remove(
-                        (path.substr(0, path.size() - 4) + ".wld").c_str());
-                }
+                write_png_sidecars(path);
             }
         }
     };
     if (starting_iteration == 0)
     {
-        const std::string initial_path =
-            parser.make_output_path("_initial_topography", ".tif");
-        loader.write_full(
-            current.get_data(), current.get_meta(), initial_path, format);
+        const std::string initial_path = parser.make_output_path(
+            "_initial_topography", ".tif");
+        loader.write_full(current.get_data(), current.get_meta(),
+                          initial_path, format);
         write_diagnostics(current, "_initial",
                           starting_iteration * ff.at("timestep") *
                               ff.at("uplift_rate"));
@@ -953,20 +962,13 @@ int main(int argc, char* argv[])
         
         const bool scheduled = ifs.at("frequency_of_output_writing") > 0 &&
             iteration % ifs.at("frequency_of_output_writing") == 0;
-        const bool surface_diagnostic =
-            bf.at("write_surface_lithology") ||
-            bf.at("write_surface_erodibility");
-        if (scheduled || surface_diagnostic)
+        if (scheduled)
         {
             const std::string frame = "_model_iteration_" +
                                       std::to_string(iteration);
-            if (scheduled)
-            {
-                const std::string path = parser.make_output_path(
-                    frame, ".tif");
-                loader.write_full(
-                    current.get_data(), current.get_meta(), path, format);
-            }
+            const std::string path = parser.make_output_path(frame, ".tif");
+            loader.write_full(
+                current.get_data(), current.get_meta(), path, format);
             write_diagnostics(current, frame,
                               iteration * ff.at("timestep") *
                                   ff.at("uplift_rate"));
@@ -976,8 +978,8 @@ int main(int argc, char* argv[])
     // -------------------------------------------------------------------------
     // Step 6 - Write final elevation, diagnostics and statistics
     // -------------------------------------------------------------------------
-    const std::string final_path =
-        parser.make_output_path("_modelled_topography", ".tif");
+    const std::string final_path = parser.make_output_path(
+        "_modelled_topography", ".tif");
     loader.write_full(
         current.get_data(), current.get_meta(), final_path, format);
     write_diagnostics(current, "_modelled",
