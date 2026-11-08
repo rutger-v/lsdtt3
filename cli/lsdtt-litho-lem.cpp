@@ -408,6 +408,21 @@ int main(int argc, char* argv[])
         "Initial and final elevation are always written.",
         "Outputs", "param", ""};
 
+    string_default_map["cross_section_rows"] = "";
+    help_map["cross_section_rows"] = {
+        "string", "", "Raster row indices for north-south cross-sections.",
+        "Optional comma-separated zero-based row indices. CSVs are written at "
+        "initial, scheduled, and final outputs.", "Outputs", "param", ""};
+    string_default_map["cross_section_cols"] = "";
+    help_map["cross_section_cols"] = {
+        "string", "", "Raster column indices for east-west cross-sections.",
+        "Optional comma-separated zero-based column indices. CSVs are written "
+        "at initial, scheduled, and final outputs.", "Outputs", "param", ""};
+    string_default_map["cross_section_write_path"] = "";
+    help_map["cross_section_write_path"] = {
+        "string", "", "Optional directory for cross-section CSVs.",
+        "Empty uses write_path.", "Outputs", "io", ""};
+
     bool_default_map["write_hillshade_rasters"] = false;
     help_map["write_hillshade_rasters"] = {
         "bool", "false", "Write hillshade diagnostic rasters.",
@@ -561,6 +576,8 @@ int main(int argc, char* argv[])
     std::vector<float> lithology_erodibilities;
     std::vector<float> lithology_contact_depths;
     std::vector<float> lithology_slice_depths;
+    std::vector<int> cross_section_rows;
+    std::vector<int> cross_section_cols;
     try
     {
         lithology_ids = parser.parse_int_vector("lithology_ids");
@@ -569,6 +586,10 @@ int main(int argc, char* argv[])
         if (!sf.at("lithology_slice_depths_metres").empty())
             lithology_slice_depths = parser.parse_float_vector(
                 "lithology_slice_depths_metres");
+        if (!sf.at("cross_section_rows").empty())
+            cross_section_rows = parser.parse_int_vector("cross_section_rows");
+        if (!sf.at("cross_section_cols").empty())
+            cross_section_cols = parser.parse_int_vector("cross_section_cols");
         require(!lithology_ids.empty(), "lithology_ids must contain at least one ID");
         require(lithology_erodibilities.size() == lithology_ids.size(),
                 "lithology_erodibilities must have one value per lithology ID");
@@ -586,6 +607,12 @@ int main(int argc, char* argv[])
         for (float depth : lithology_slice_depths)
             require(std::isfinite(depth) && depth >= 0.0f,
                     "lithology slice depths must be finite and non-negative");
+        for (int row : cross_section_rows)
+            require(row >= 0 && row < ifs.at("n_rows"),
+                    "cross_section_rows indices must be within the raster");
+        for (int col : cross_section_cols)
+            require(col >= 0 && col < ifs.at("n_cols"),
+                    "cross_section_cols indices must be within the raster");
     }
     catch (const std::exception& e)
     {
@@ -876,6 +903,7 @@ int main(int argc, char* argv[])
                 lsdtt::lsdtt_flowinfo_options flow_options;
                 flow_options.boundary_conditions = sf.at("boundary_conditions");
                 flow_options.build_s_vector = false;
+                flow_options.allow_pits_as_outlets = true;
                 flow_options.n_threads = ifs.at("n_threads");
                 lsdtt::lsdtt_flowinfo flow(
                     raster.get_data_array(), raster.get_mask_array(),
@@ -912,6 +940,96 @@ int main(int argc, char* argv[])
             }
         }
     };
+    auto write_cross_sections = [&](const lsdtt::lsdtt_raster_cpu& raster,
+                                    const std::string& frame,
+                                    int iteration,
+                                    double cumulative_uplift)
+    {
+        if (cross_section_rows.empty() && cross_section_cols.empty()) return;
+
+        namespace fs = std::filesystem;
+        const fs::path output_directory(parser.get_write_path());
+        const auto& meta = raster.get_meta();
+        const auto& elevation = raster.get_data();
+        const auto& mask = raster.get_mask();
+        const double cell = meta.cell_size;
+        const double baselevel = ff.at("baselevel_elevation");
+        const double nodata = meta.no_data_value;
+
+        auto write_section = [&](bool is_row, int index)
+        {
+            const std::string axis = is_row ? "row" : "col";
+            const fs::path csv_directory = sf.at("cross_section_write_path").empty()
+                ? output_directory : fs::path(sf.at("cross_section_write_path"));
+            fs::create_directories(csv_directory);
+            const fs::path path = csv_directory /
+                (parser.get_write_fname() + frame + "_cross_section_" + axis +
+                 std::to_string(index) + ".csv");
+            std::ofstream csv(path, std::ios::app);
+            if (!csv)
+                throw std::runtime_error(
+                    "Could not open cross-section CSV: " + path.string());
+
+            if (csv.tellp() == 0)
+                csv << "iteration,row,col,distance,elevation,contact_elevation,"
+                       "type,lithology_ID_above,lithology_ID_below,"
+                       "erodibility_above,erodibility_below\n";
+            const int count = is_row ? meta.n_cols : meta.n_rows;
+            for (int along = 0; along < count; ++along)
+            {
+                const int row = is_row ? index : along;
+                const int col = is_row ? along : index;
+                const std::size_t pixel = static_cast<std::size_t>(row) *
+                    static_cast<std::size_t>(meta.n_cols) +
+                    static_cast<std::size_t>(col);
+                const double distance = (static_cast<double>(along) + 0.5) * cell;
+                const bool valid = mask[pixel] != 0 &&
+                                   std::isfinite(elevation[pixel]);
+                const double surface = valid ? elevation[pixel] : nodata;
+                const double surface_depth = valid
+                    ? std::max(0.0, cumulative_uplift +
+                        ff.at("depth_zero_offset_metres") -
+                        (surface - baselevel))
+                    : nodata;
+
+                const auto& contacts = lithology.contact_depths();
+                std::size_t surface_layer = 0;
+                if (valid)
+                    while (surface_layer < contacts.size() &&
+                           surface_depth >= contacts[surface_layer][pixel])
+                        ++surface_layer;
+                const int surface_lithology = valid
+                    ? lithology.lithology_ids()[surface_layer] : 0;
+                const double relative_surface = valid ? surface - baselevel : nodata;
+                const float surface_erodibility = valid
+                    ? lithology.erodibilities()[surface_layer]
+                    : static_cast<float>(nodata);
+                csv << iteration << ',' << row << ',' << col << ',' << distance
+                    << ',' << relative_surface << ",,surface,"
+                    << surface_lithology << ',' << surface_lithology << ','
+                    << surface_erodibility << ',' << surface_erodibility << '\n';
+                for (std::size_t contact = 0; contact < contacts.size(); ++contact)
+                {
+                    const double z = valid
+                        ? baselevel + cumulative_uplift +
+                            ff.at("depth_zero_offset_metres") -
+                            contacts[contact][pixel]
+                        : nodata;
+                    const double relative_contact = valid ? z - baselevel : nodata;
+                    csv << iteration << ',' << row << ',' << col << ','
+                        << distance << ',' << relative_surface << ','
+                        << relative_contact << ",contact,"
+                        << lithology.lithology_ids()[contact] << ','
+                        << lithology.lithology_ids()[contact + 1] << ','
+                        << lithology.erodibilities()[contact] << ','
+                        << lithology.erodibilities()[contact + 1] << '\n';
+                }
+            }
+        };
+
+        for (int row : cross_section_rows) write_section(true, row);
+        for (int col : cross_section_cols) write_section(false, col);
+    };
     if (starting_iteration == 0)
     {
         const std::string initial_path = parser.make_output_path(
@@ -921,6 +1039,7 @@ int main(int argc, char* argv[])
         write_diagnostics(current, "_initial",
                           starting_iteration * ff.at("timestep") *
                               ff.at("uplift_rate"));
+        write_cross_sections(current, "_initial", 0, 0.0);
     }
 
     // -------------------------------------------------------------------------
@@ -972,6 +1091,9 @@ int main(int argc, char* argv[])
             write_diagnostics(current, frame,
                               iteration * ff.at("timestep") *
                                   ff.at("uplift_rate"));
+            write_cross_sections(current, frame, iteration,
+                                 iteration * ff.at("timestep") *
+                                     ff.at("uplift_rate"));
         }
     }
     std::cout << "\n";
@@ -985,6 +1107,10 @@ int main(int argc, char* argv[])
     write_diagnostics(current, "_modelled",
                       ifs.at("number_of_iterations") * ff.at("timestep") *
                           ff.at("uplift_rate"));
+    write_cross_sections(current, "_modelled",
+                         ifs.at("number_of_iterations"),
+                         ifs.at("number_of_iterations") * ff.at("timestep") *
+                             ff.at("uplift_rate"));
     parser.print_parameters();
     std::cout << "\nlsdtt-litho-lem: done.\n";
     return run_record.succeed();
