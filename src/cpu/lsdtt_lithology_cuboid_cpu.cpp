@@ -161,7 +161,6 @@ void lsdtt_lithology_cuboid_cpu::apply_sine(
         throw std::invalid_argument(
             "lsdtt_lithology_cuboid_cpu: invalid sine transformation parameters or coordinate range");
 
-    const double origin = along_y ? meta_.y_min : meta_.x_min;
     for (std::vector<float>& contact : contact_depths_)
     {
         for (int row = 0; row < meta_.n_rows; ++row)
@@ -169,11 +168,18 @@ void lsdtt_lithology_cuboid_cpu::apply_sine(
             for (int col = 0; col < meta_.n_cols; ++col)
             {
                 const std::size_t pixel = static_cast<std::size_t>(row) * meta_.n_cols + col;
+                // Bounds are edge-relative distances. For y, measure northward
+                // from the southern edge; raster rows themselves increase southward.
+                const double distance_from_edge = along_y
+                    ? (static_cast<double>(meta_.n_rows - row) - 0.5) * meta_.cell_size
+                    : (static_cast<double>(col) + 0.5) * meta_.cell_size;
+                if (distance_from_edge < min_coordinate ||
+                    distance_from_edge > max_coordinate)
+                    continue;
                 const double coordinate = along_y
                     ? meta_.y_min + (static_cast<double>(row) + 0.5) * meta_.cell_size
-                    : meta_.x_min + (static_cast<double>(col) + 0.5) * meta_.cell_size;
-                if (coordinate < min_coordinate || coordinate > max_coordinate)
-                    continue;
+                    : meta_.x_min + distance_from_edge;
+                const double origin = along_y ? meta_.y_min : meta_.x_min;
                 const double displacement = amplitude * std::sin(
                     2.0 * k_pi * (coordinate - origin) / wavelength + phase);
                 const double updated = static_cast<double>(contact[pixel]) + displacement;
@@ -194,7 +200,6 @@ void lsdtt_lithology_cuboid_cpu::apply_linear(
         throw std::invalid_argument(
             "lsdtt_lithology_cuboid_cpu: invalid linear transformation parameters or coordinate range");
 
-    const double origin = along_y ? meta_.y_min : meta_.x_min;
     for (std::vector<float>& contact : contact_depths_)
     {
         for (int row = 0; row < meta_.n_rows; ++row)
@@ -202,11 +207,18 @@ void lsdtt_lithology_cuboid_cpu::apply_linear(
             for (int col = 0; col < meta_.n_cols; ++col)
             {
                 const std::size_t pixel = static_cast<std::size_t>(row) * meta_.n_cols + col;
+                // Bounds are edge-relative distances. For y, measure northward
+                // from the southern edge; raster rows themselves increase southward.
+                const double distance_from_edge = along_y
+                    ? (static_cast<double>(meta_.n_rows - row) - 0.5) * meta_.cell_size
+                    : (static_cast<double>(col) + 0.5) * meta_.cell_size;
+                if (distance_from_edge < min_coordinate ||
+                    distance_from_edge > max_coordinate)
+                    continue;
                 const double coordinate = along_y
                     ? meta_.y_min + (static_cast<double>(row) + 0.5) * meta_.cell_size
-                    : meta_.x_min + (static_cast<double>(col) + 0.5) * meta_.cell_size;
-                if (coordinate < min_coordinate || coordinate > max_coordinate)
-                    continue;
+                    : meta_.x_min + distance_from_edge;
+                const double origin = along_y ? meta_.y_min : meta_.x_min;
                 const double updated = static_cast<double>(contact[pixel]) +
                                        gradient * (coordinate - origin);
                 if (!std::isfinite(updated) || updated <= 0.0)

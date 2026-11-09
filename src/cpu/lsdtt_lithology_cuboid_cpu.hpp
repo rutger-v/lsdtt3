@@ -68,17 +68,20 @@ public:
     [[nodiscard]] std::vector<float> erodibility_at_depth(
         const lsdtt_raster_cpu& depth) const;
 
-    // Apply a sinusoidal vertical displacement to every contact. Coordinates
-    // are projected raster coordinates, in the same units as the raster grid.
-    // Wavelength must be positive; amplitude and phase use grid/depth units
-    // respectively. Phase is in radians.
+    // Apply a sinusoidal vertical displacement to every contact. Bounds are
+    // inclusive distances northward from the southern (y) or eastward from the
+    // western (x) grid edge, in grid
+    // units, independent of the georeferenced origin. Wavelength is positive;
+    // amplitude uses depth units and phase is in radians.
     void apply_sine_y(double wavelength, double phase, double amplitude,
                       double min_coordinate, double max_coordinate);
     void apply_sine_x(double wavelength, double phase, double amplitude,
                       double min_coordinate, double max_coordinate);
 
-    // Apply a linear vertical displacement to every contact. The gradient is
-    // change in depth per projected coordinate unit along the named axis.
+    // Apply a linear vertical displacement to every contact. Bounds are
+    // inclusive distances northward from the southern (y) or eastward from the
+    // western (x) grid edge, in grid
+    // units. The gradient is change in depth per grid unit along that axis.
     void apply_linear_y(double gradient, double min_coordinate,
                         double max_coordinate);
     void apply_linear_x(double gradient, double min_coordinate,

@@ -258,11 +258,11 @@ int main(int argc, char* argv[])
     float_default_map["contact_sine_x_max_coordinate_metres"] =
         std::numeric_limits<float>::max();
     help_map["contact_sine_x_min_coordinate_metres"] = {
-        "float", "minimum float", "Minimum x coordinate (m) where this transformation applies.",
+        "float", "minimum float", "Minimum distance (m) eastward from the western grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_sine_x"};
     help_map["contact_sine_x_max_coordinate_metres"] = {
-        "float", "maximum float", "Maximum x coordinate (m) where this transformation applies.",
+        "float", "maximum float", "Maximum distance (m) eastward from the western grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_sine_x"};
     float_default_map["contact_sine_x_wavelength_metres"] = 1000.0f;
@@ -287,11 +287,11 @@ int main(int argc, char* argv[])
     float_default_map["contact_sine_y_max_coordinate_metres"] =
         std::numeric_limits<float>::max();
     help_map["contact_sine_y_min_coordinate_metres"] = {
-        "float", "minimum float", "Minimum y coordinate (m) where this transformation applies.",
+        "float", "minimum distance", "Minimum distance (m) northward from the southern grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_sine_y"};
     help_map["contact_sine_y_max_coordinate_metres"] = {
-        "float", "maximum float", "Maximum y coordinate (m) where this transformation applies.",
+        "float", "maximum distance", "Maximum distance (m) northward from the southern grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_sine_y"};
     float_default_map["contact_sine_y_wavelength_metres"] = 1000.0f;
@@ -316,11 +316,11 @@ int main(int argc, char* argv[])
     float_default_map["contact_tilt_x_max_coordinate_metres"] =
         std::numeric_limits<float>::max();
     help_map["contact_tilt_x_min_coordinate_metres"] = {
-        "float", "minimum float", "Minimum x coordinate (m) where this transformation applies.",
+        "float", "minimum float", "Minimum distance (m) eastward from the western grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_tilt_x"};
     help_map["contact_tilt_x_max_coordinate_metres"] = {
-        "float", "maximum float", "Maximum x coordinate (m) where this transformation applies.",
+        "float", "maximum float", "Maximum distance (m) eastward from the western grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_tilt_x"};
     float_default_map["contact_tilt_x_gradient"] = 0.0f;
@@ -336,11 +336,11 @@ int main(int argc, char* argv[])
     float_default_map["contact_tilt_y_max_coordinate_metres"] =
         std::numeric_limits<float>::max();
     help_map["contact_tilt_y_min_coordinate_metres"] = {
-        "float", "minimum float", "Minimum y coordinate (m) where this transformation applies.",
+        "float", "minimum float", "Minimum distance (m) northward from the southern grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_tilt_y"};
     help_map["contact_tilt_y_max_coordinate_metres"] = {
-        "float", "maximum float", "Maximum y coordinate (m) where this transformation applies.",
+        "float", "maximum float", "Maximum distance (m) northward from the southern grid edge where this transformation applies.",
         "Inclusive; defaults to the full domain.", "Contact shape", "param",
         "apply_contact_transformation_tilt_y"};
     float_default_map["contact_tilt_y_gradient"] = 0.0f;
@@ -917,7 +917,7 @@ int main(int argc, char* argv[])
                 lsdtt::lsdtt_flowinfo_options flow_options;
                 flow_options.boundary_conditions = sf.at("boundary_conditions");
                 flow_options.build_s_vector = false;
-                flow_options.allow_pits_as_outlets = true;
+                flow_options.allow_pits_as_outlets = false;
                 flow_options.n_threads = ifs.at("n_threads");
                 lsdtt::lsdtt_flowinfo flow(
                     raster.get_data_array(), raster.get_mask_array(),
@@ -1004,7 +1004,9 @@ int main(int argc, char* argv[])
                     const std::size_t pixel = static_cast<std::size_t>(row) *
                         static_cast<std::size_t>(meta.n_cols) +
                         static_cast<std::size_t>(col);
-                    const double distance = (static_cast<double>(along) + 0.5) * cell;
+                    const double distance = is_row
+                        ? (static_cast<double>(along) + 0.5) * cell
+                        : (static_cast<double>(meta.n_rows - along) - 0.5) * cell;
                     const bool valid = mask[pixel] != 0 &&
                                        std::isfinite(elevation[pixel]);
                     const double surface = valid ? elevation[pixel] : nodata;
