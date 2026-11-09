@@ -523,6 +523,7 @@ static void seed_raster_boundary(
     int r0, int r1,
     bool per_ns,
     bool per_ew,
+    const std::array<char, 4>* boundary_codes = nullptr,
     const lsdtt_array2d<uint8_t>* sink_plane = nullptr)
 {
     // The 8-neighbour scan below exists solely to find cells adjacent to an
@@ -559,6 +560,13 @@ static void seed_raster_boundary(
             // neighbour once the router wraps.
             bool seed = (!per_ns && (r == 0 || r == nrows - 1)) ||
                         (!per_ew && (c == 0 || c == ncols - 1));
+            if (boundary_codes != nullptr)
+            {
+                seed = ((!per_ns && r == 0 && (*boundary_codes)[0] != 'n') ||
+                        (!per_ew && c == ncols - 1 && (*boundary_codes)[1] != 'n') ||
+                        (!per_ns && r == nrows - 1 && (*boundary_codes)[2] != 'n') ||
+                        (!per_ew && c == 0 && (*boundary_codes)[3] != 'n'));
+            }
 
             // A designated sink is a drainage exit in its own right. It is
             // seeded at its OWN elevation, so the flood starts from the floor
@@ -601,13 +609,14 @@ static void fill_serial_impl(
     PriorityQueue&                 pq,
     bool                          per_ns     = false,
     bool                          per_ew     = false,
+    const std::array<char, 4>*    boundary_codes = nullptr,
     const lsdtt_array2d<uint8_t>* sink_plane = nullptr)
 {
     const int nrows = meta.n_rows;
     const int ncols = meta.n_cols;
 
     seed_raster_boundary(filled, idx, pq, nrows, ncols, 0, nrows,
-                         per_ns, per_ew, sink_plane);
+                         per_ns, per_ew, boundary_codes, sink_plane);
     priority_flood_core(filled, idx, pq, meta, min_slope, 0, nrows, 0, ncols,
                         per_ns, per_ew);
 }
@@ -619,6 +628,7 @@ static void fill_serial(
     float                         min_slope,
     bool                          per_ns = false,
     bool                          per_ew = false,
+    const std::array<char, 4>*    boundary_codes = nullptr,
     const lsdtt_array2d<uint8_t>* sink_plane = nullptr,
     priority_flood_queue_backend  queue_backend =
         priority_flood_queue_backend::binary_heap)
@@ -627,13 +637,13 @@ static void fill_serial(
     {
         pf_radix_priority_queue pq;
         fill_serial_impl(filled, idx, meta, min_slope, pq, per_ns, per_ew,
-                         sink_plane);
+                         boundary_codes, sink_plane);
     }
     else
     {
         pf_heap pq;
         fill_serial_impl(filled, idx, meta, min_slope, pq, per_ns, per_ew,
-                         sink_plane);
+                         boundary_codes, sink_plane);
     }
 }
 
@@ -743,10 +753,16 @@ lsdtt_raster_cpu fill_pits(
             "BOTH directions, so the grid has no drainage exit at all and every "
             "cell would fill to the global maximum. Leave one pair open.");
 
-    // No periodic direction: nothing here differs from the plain overload, so
-    // defer to it and keep its reconstruction fast path.
-    if (!per_ns && !per_ew)
-        return fill_pits(raster, min_slope, n_threads, queue_backend);
+    std::array<char, 4> codes{{'o', 'o', 'o', 'o'}};
+    for (std::size_t i = 0; i < codes.size() && i < bc.size(); ++i)
+    {
+        char code = bc[i];
+        if (code >= 'A' && code <= 'Z') code = static_cast<char>(code - 'A' + 'a');
+        codes[i] = code;
+    }
+
+    // Use the priority-flood implementation even without periodic edges so the
+    // supplied 'n' sides can be excluded from the boundary seed set.
 
     // Periodic always takes the priority-flood backend. The reconstruction
     // backend is a separate implementation with its own neighbour walk and has
@@ -759,7 +775,7 @@ lsdtt_raster_cpu fill_pits(
 
     fill_inputs inputs = make_fill_inputs(raster);
     fill_serial(inputs.dem, inputs.idx, meta, min_slope, per_ns, per_ew,
-                nullptr, queue_backend);
+                &codes, nullptr, queue_backend);
 
     return lsdtt_raster_cpu(
         std::move(inputs.dem.get_vector()),
@@ -896,7 +912,7 @@ lsdtt_raster_cpu fill_pits_priority_flood(
     lsdtt_array2d<uint8_t>& mask_arr = inputs.mask;
     lsdtt_array2d<int>&     idx      = inputs.idx;
 
-    fill_serial(filled, idx, meta, min_slope, false, false, nullptr,
+    fill_serial(filled, idx, meta, min_slope, false, false, nullptr, nullptr,
                 queue_backend);
 
     return lsdtt_raster_cpu(
@@ -981,7 +997,7 @@ lsdtt_raster_cpu fill_pits_with_sinks(
         sink_plane(r, c) = uint8_t{1};
     }
 
-    fill_serial(filled, idx, meta, min_slope, false, false, &sink_plane,
+    fill_serial(filled, idx, meta, min_slope, false, false, nullptr, &sink_plane,
                 queue_backend);
 
     return lsdtt_raster_cpu(

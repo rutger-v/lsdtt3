@@ -174,7 +174,7 @@ n_cols: 500
 cell_size_metres: 2
 noise_target_stddev_metres: 4
 random_seed: 33
-boundary_conditions: opop
+boundary_conditions: oooo
 baselevel_elevation: 0
 fill_initial_surface: true
 
@@ -227,7 +227,7 @@ This section is generated from the executable's `-h json` registry. Do not edit 
 | `n_rows` | `int` | `128` | `param` | - | Number of grid rows. | - |
 | `n_cols` | `int` | `128` | `param` | - | Number of grid columns. | - |
 | `cell_size_metres` | `float` | `1` | `param` | - | Grid cell size (m). | - |
-| `boundary_conditions` | `string` | `opop` | `param` | - | Boundary conditions in N,E,S,W order. | o=open fixed-baselevel, n=no-flux, p=periodic, b=forced outlet. |
+| `boundary_conditions` | `string` | `oooo` | `param` | - | Boundary conditions in N,E,S,W order. | o=open fixed-baselevel, n=no-flux, p=periodic, b=forced outlet. |
 | `n_threads` | `int` | `0` | `io` | - | OpenMP threads; 0 uses all available. | - |
 
 ### Initial conditions

@@ -220,9 +220,9 @@ int main(int argc, char* argv[])
         "float", "1", "Grid cell size (m).", "",
         "Grid settings", "param", ""};
 
-    string_default_map["boundary_conditions"] = "opop";
+    string_default_map["boundary_conditions"] = "oooo";
     help_map["boundary_conditions"] = {
-        "string", "opop", "Boundary conditions in N,E,S,W order.",
+        "string", "oooo", "Boundary conditions in N,E,S,W order.",
         "o=open fixed-baselevel, n=no-flux, p=periodic, b=forced outlet.",
         "Grid settings", "param", ""};
 
