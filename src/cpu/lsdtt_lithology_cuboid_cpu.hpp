@@ -25,8 +25,9 @@ class lsdtt_lithology_cuboid_cpu
 {
 public:
     // Contacts are supplied top-to-bottom (strictly increasing positive depth).
-    // A contact separates lithology_ids[i] from lithology_ids[i + 1]. The
-    // supplied depths are initially horizontal and are expanded over the grid.
+    // A contact separates lithology_ids[i] from lithology_ids[i + 1]. IDs are
+    // indices into erodibilities and may repeat. The supplied depths are
+    // initially horizontal and are expanded over the grid.
     lsdtt_lithology_cuboid_cpu(
         const lsdtt_raster_cpu& grid,
         std::vector<int> lithology_ids,
@@ -71,20 +72,25 @@ public:
     // are projected raster coordinates, in the same units as the raster grid.
     // Wavelength must be positive; amplitude and phase use grid/depth units
     // respectively. Phase is in radians.
-    void apply_sine_y(double wavelength, double phase, double amplitude);
-    void apply_sine_x(double wavelength, double phase, double amplitude);
+    void apply_sine_y(double wavelength, double phase, double amplitude,
+                      double min_coordinate, double max_coordinate);
+    void apply_sine_x(double wavelength, double phase, double amplitude,
+                      double min_coordinate, double max_coordinate);
 
     // Apply a linear vertical displacement to every contact. The gradient is
     // change in depth per projected coordinate unit along the named axis.
-    void apply_linear_y(double gradient);
-    void apply_linear_x(double gradient);
+    void apply_linear_y(double gradient, double min_coordinate,
+                        double max_coordinate);
+    void apply_linear_x(double gradient, double min_coordinate,
+                        double max_coordinate);
 
 private:
     void require_matching_grid(const lsdtt_raster_cpu& raster,
                                const char* raster_name) const;
     void apply_sine(double wavelength, double phase, double amplitude,
-                    bool along_y);
-    void apply_linear(double gradient, bool along_y);
+                    double min_coordinate, double max_coordinate, bool along_y);
+    void apply_linear(double gradient, double min_coordinate,
+                      double max_coordinate, bool along_y);
 
     lsdtt_raster_meta meta_;
     std::vector<int> lithology_ids_;

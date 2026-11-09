@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -54,15 +53,18 @@ lsdtt_lithology_cuboid_cpu::lsdtt_lithology_cuboid_cpu(
     if (lithology_ids_.empty())
         throw std::invalid_argument(
             "lsdtt_lithology_cuboid_cpu: at least one lithology ID is required");
-    if (erodibilities_.size() != lithology_ids_.size() ||
+    if (erodibilities_.empty() ||
         contact_depths.size() + 1 != lithology_ids_.size())
         throw std::invalid_argument(
-            "lsdtt_lithology_cuboid_cpu: expected N IDs, N erodibilities, and N-1 contact depths");
-
-    std::set<int> unique_ids(lithology_ids_.begin(), lithology_ids_.end());
-    if (unique_ids.size() != lithology_ids_.size())
-        throw std::invalid_argument(
-            "lsdtt_lithology_cuboid_cpu: duplicate lithology IDs are not allowed");
+            "lsdtt_lithology_cuboid_cpu: expected N layer IDs, at least one erodibility, and N-1 contact depths");
+    for (int id : lithology_ids_)
+        if (id < 0 || static_cast<std::size_t>(id) >= erodibilities_.size())
+            throw std::invalid_argument(
+                "lsdtt_lithology_cuboid_cpu: each lithology ID must index the erodibility list");
+    for (float erodibility : erodibilities_)
+        if (!std::isfinite(erodibility) || erodibility <= 0.0f)
+            throw std::invalid_argument(
+                "lsdtt_lithology_cuboid_cpu: erodibilities must be finite and positive");
 
     for (std::size_t i = 0; i < contact_depths.size(); ++i)
     {
@@ -142,18 +144,22 @@ std::vector<float> lsdtt_lithology_cuboid_cpu::erodibility_at_depth(
         while (lithology < contact_depths_.size() &&
                values[pixel] >= contact_depths_[lithology][pixel])
             ++lithology;
-        output[pixel] = erodibilities_[lithology];
+        output[pixel] = erodibilities_[static_cast<std::size_t>(
+            lithology_ids_[lithology])];
     }
     return output;
 }
 
 void lsdtt_lithology_cuboid_cpu::apply_sine(
-    double wavelength, double phase, double amplitude, bool along_y)
+    double wavelength, double phase, double amplitude,
+    double min_coordinate, double max_coordinate, bool along_y)
 {
     if (!std::isfinite(wavelength) || wavelength <= 0.0 ||
-        !std::isfinite(phase) || !std::isfinite(amplitude))
+        !std::isfinite(phase) || !std::isfinite(amplitude) ||
+        std::isnan(min_coordinate) || std::isnan(max_coordinate) ||
+        min_coordinate > max_coordinate)
         throw std::invalid_argument(
-            "lsdtt_lithology_cuboid_cpu: sine wavelength must be positive and parameters finite");
+            "lsdtt_lithology_cuboid_cpu: invalid sine transformation parameters or coordinate range");
 
     const double origin = along_y ? meta_.y_min : meta_.x_min;
     for (std::vector<float>& contact : contact_depths_)
@@ -166,6 +172,8 @@ void lsdtt_lithology_cuboid_cpu::apply_sine(
                 const double coordinate = along_y
                     ? meta_.y_min + (static_cast<double>(row) + 0.5) * meta_.cell_size
                     : meta_.x_min + (static_cast<double>(col) + 0.5) * meta_.cell_size;
+                if (coordinate < min_coordinate || coordinate > max_coordinate)
+                    continue;
                 const double displacement = amplitude * std::sin(
                     2.0 * k_pi * (coordinate - origin) / wavelength + phase);
                 const double updated = static_cast<double>(contact[pixel]) + displacement;
@@ -178,11 +186,13 @@ void lsdtt_lithology_cuboid_cpu::apply_sine(
     }
 }
 
-void lsdtt_lithology_cuboid_cpu::apply_linear(double gradient, bool along_y)
+void lsdtt_lithology_cuboid_cpu::apply_linear(
+    double gradient, double min_coordinate, double max_coordinate, bool along_y)
 {
-    if (!std::isfinite(gradient))
+    if (!std::isfinite(gradient) || std::isnan(min_coordinate) ||
+        std::isnan(max_coordinate) || min_coordinate > max_coordinate)
         throw std::invalid_argument(
-            "lsdtt_lithology_cuboid_cpu: linear gradient must be finite");
+            "lsdtt_lithology_cuboid_cpu: invalid linear transformation parameters or coordinate range");
 
     const double origin = along_y ? meta_.y_min : meta_.x_min;
     for (std::vector<float>& contact : contact_depths_)
@@ -195,6 +205,8 @@ void lsdtt_lithology_cuboid_cpu::apply_linear(double gradient, bool along_y)
                 const double coordinate = along_y
                     ? meta_.y_min + (static_cast<double>(row) + 0.5) * meta_.cell_size
                     : meta_.x_min + (static_cast<double>(col) + 0.5) * meta_.cell_size;
+                if (coordinate < min_coordinate || coordinate > max_coordinate)
+                    continue;
                 const double updated = static_cast<double>(contact[pixel]) +
                                        gradient * (coordinate - origin);
                 if (!std::isfinite(updated) || updated <= 0.0)
@@ -207,25 +219,29 @@ void lsdtt_lithology_cuboid_cpu::apply_linear(double gradient, bool along_y)
 }
 
 void lsdtt_lithology_cuboid_cpu::apply_sine_y(
-    double wavelength, double phase, double amplitude)
+    double wavelength, double phase, double amplitude,
+    double min_coordinate, double max_coordinate)
 {
-    apply_sine(wavelength, phase, amplitude, true);
+    apply_sine(wavelength, phase, amplitude, min_coordinate, max_coordinate, true);
 }
 
 void lsdtt_lithology_cuboid_cpu::apply_sine_x(
-    double wavelength, double phase, double amplitude)
+    double wavelength, double phase, double amplitude,
+    double min_coordinate, double max_coordinate)
 {
-    apply_sine(wavelength, phase, amplitude, false);
+    apply_sine(wavelength, phase, amplitude, min_coordinate, max_coordinate, false);
 }
 
-void lsdtt_lithology_cuboid_cpu::apply_linear_y(double gradient)
+void lsdtt_lithology_cuboid_cpu::apply_linear_y(
+    double gradient, double min_coordinate, double max_coordinate)
 {
-    apply_linear(gradient, true);
+    apply_linear(gradient, min_coordinate, max_coordinate, true);
 }
 
-void lsdtt_lithology_cuboid_cpu::apply_linear_x(double gradient)
+void lsdtt_lithology_cuboid_cpu::apply_linear_x(
+    double gradient, double min_coordinate, double max_coordinate)
 {
-    apply_linear(gradient, false);
+    apply_linear(gradient, min_coordinate, max_coordinate, false);
 }
 
 } // namespace lsdtt

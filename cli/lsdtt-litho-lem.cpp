@@ -227,15 +227,15 @@ int main(int argc, char* argv[])
         "Grid settings", "param", ""};
 
     // --- Lithology structure ---
-    string_default_map["lithology_ids"] = "1,2";
+    string_default_map["lithology_ids"] = "0,1";
     help_map["lithology_ids"] = {
-        "string", "1,2", "Lithology IDs from shallowest to deepest.",
-        "Comma-separated integers; IDs must be unique and match the K list.",
+        "string", "0,1", "Erodibility-list indices from shallowest to deepest.",
+        "Comma-separated zero-based indices into lithology_erodibilities. IDs may repeat.",
         "Lithology structure", "param", ""};
     string_default_map["lithology_erodibilities"] = "1e-3,1e-3";
     help_map["lithology_erodibilities"] = {
-        "string", "1e-3,1e-3", "Erodibility K for each lithology ID.",
-        "Comma-separated positive values, in stream-power K units.",
+        "string", "1e-3,1e-3", "Erodibility K values addressed by lithology_ids.",
+        "Comma-separated positive values, in stream-power K units. IDs are zero-based indices.",
         "Lithology structure", "param", "lithology_ids"};
     string_default_map["lithology_contact_depths"] = "100";
     help_map["lithology_contact_depths"] = {
@@ -249,56 +249,104 @@ int main(int argc, char* argv[])
         "Absolute K values come from lithology_erodibilities.",
         "Lithology structure", "param", ""};
     // --- Contact shape ---
-    bool_default_map["run_contact_sine_x"] = false;
-    help_map["run_contact_sine_x"] = {
+    bool_default_map["apply_contact_transformation_sine_x"] = false;
+    help_map["apply_contact_transformation_sine_x"] = {
         "bool", "false", "Apply a sine displacement to all contacts in x.", "",
         "Contact shape", "switch", ""};
+    float_default_map["contact_sine_x_min_coordinate_metres"] =
+        std::numeric_limits<float>::lowest();
+    float_default_map["contact_sine_x_max_coordinate_metres"] =
+        std::numeric_limits<float>::max();
+    help_map["contact_sine_x_min_coordinate_metres"] = {
+        "float", "minimum float", "Minimum x coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_sine_x"};
+    help_map["contact_sine_x_max_coordinate_metres"] = {
+        "float", "maximum float", "Maximum x coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_sine_x"};
     float_default_map["contact_sine_x_wavelength_metres"] = 1000.0f;
     help_map["contact_sine_x_wavelength_metres"] = {
         "float", "1000", "X-direction sine wavelength (m).", "",
-        "Contact shape", "param", "run_contact_sine_x"};
+        "Contact shape", "param", "apply_contact_transformation_sine_x"};
     float_default_map["contact_sine_x_phase_radians"] = 0.0f;
     help_map["contact_sine_x_phase_radians"] = {
         "float", "0", "X-direction sine phase (radians).", "",
-        "Contact shape", "param", "run_contact_sine_x"};
+        "Contact shape", "param", "apply_contact_transformation_sine_x"};
     float_default_map["contact_sine_x_amplitude_metres"] = 0.0f;
     help_map["contact_sine_x_amplitude_metres"] = {
         "float", "0", "X-direction sine amplitude (m).", "",
-        "Contact shape", "param", "run_contact_sine_x"};
+        "Contact shape", "param", "apply_contact_transformation_sine_x"};
 
-    bool_default_map["run_contact_sine_y"] = false;
-    help_map["run_contact_sine_y"] = {
+    bool_default_map["apply_contact_transformation_sine_y"] = false;
+    help_map["apply_contact_transformation_sine_y"] = {
         "bool", "false", "Apply a sine displacement to all contacts in y.", "",
         "Contact shape", "switch", ""};
+    float_default_map["contact_sine_y_min_coordinate_metres"] =
+        std::numeric_limits<float>::lowest();
+    float_default_map["contact_sine_y_max_coordinate_metres"] =
+        std::numeric_limits<float>::max();
+    help_map["contact_sine_y_min_coordinate_metres"] = {
+        "float", "minimum float", "Minimum y coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_sine_y"};
+    help_map["contact_sine_y_max_coordinate_metres"] = {
+        "float", "maximum float", "Maximum y coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_sine_y"};
     float_default_map["contact_sine_y_wavelength_metres"] = 1000.0f;
     help_map["contact_sine_y_wavelength_metres"] = {
         "float", "1000", "Y-direction sine wavelength (m).", "",
-        "Contact shape", "param", "run_contact_sine_y"};
+        "Contact shape", "param", "apply_contact_transformation_sine_y"};
     float_default_map["contact_sine_y_phase_radians"] = 0.0f;
     help_map["contact_sine_y_phase_radians"] = {
         "float", "0", "Y-direction sine phase (radians).", "",
-        "Contact shape", "param", "run_contact_sine_y"};
+        "Contact shape", "param", "apply_contact_transformation_sine_y"};
     float_default_map["contact_sine_y_amplitude_metres"] = 0.0f;
     help_map["contact_sine_y_amplitude_metres"] = {
         "float", "0", "Y-direction sine amplitude (m).", "",
-        "Contact shape", "param", "run_contact_sine_y"};
+        "Contact shape", "param", "apply_contact_transformation_sine_y"};
 
-    bool_default_map["run_contact_tilt_x"] = false;
-    help_map["run_contact_tilt_x"] = {
+    bool_default_map["apply_contact_transformation_tilt_x"] = false;
+    help_map["apply_contact_transformation_tilt_x"] = {
         "bool", "false", "Apply a linear depth tilt to all contacts in x.", "",
         "Contact shape", "switch", ""};
+    float_default_map["contact_tilt_x_min_coordinate_metres"] =
+        std::numeric_limits<float>::lowest();
+    float_default_map["contact_tilt_x_max_coordinate_metres"] =
+        std::numeric_limits<float>::max();
+    help_map["contact_tilt_x_min_coordinate_metres"] = {
+        "float", "minimum float", "Minimum x coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_tilt_x"};
+    help_map["contact_tilt_x_max_coordinate_metres"] = {
+        "float", "maximum float", "Maximum x coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_tilt_x"};
     float_default_map["contact_tilt_x_gradient"] = 0.0f;
     help_map["contact_tilt_x_gradient"] = {
         "float", "0", "X-direction contact-depth gradient (m/m).", "",
-        "Contact shape", "param", "run_contact_tilt_x"};
-    bool_default_map["run_contact_tilt_y"] = false;
-    help_map["run_contact_tilt_y"] = {
+        "Contact shape", "param", "apply_contact_transformation_tilt_x"};
+    bool_default_map["apply_contact_transformation_tilt_y"] = false;
+    help_map["apply_contact_transformation_tilt_y"] = {
         "bool", "false", "Apply a linear depth tilt to all contacts in y.", "",
         "Contact shape", "switch", ""};
+    float_default_map["contact_tilt_y_min_coordinate_metres"] =
+        std::numeric_limits<float>::lowest();
+    float_default_map["contact_tilt_y_max_coordinate_metres"] =
+        std::numeric_limits<float>::max();
+    help_map["contact_tilt_y_min_coordinate_metres"] = {
+        "float", "minimum float", "Minimum y coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_tilt_y"};
+    help_map["contact_tilt_y_max_coordinate_metres"] = {
+        "float", "maximum float", "Maximum y coordinate (m) where this transformation applies.",
+        "Inclusive; defaults to the full domain.", "Contact shape", "param",
+        "apply_contact_transformation_tilt_y"};
     float_default_map["contact_tilt_y_gradient"] = 0.0f;
     help_map["contact_tilt_y_gradient"] = {
         "float", "0", "Y-direction contact-depth gradient (m/m).", "",
-        "Contact shape", "param", "run_contact_tilt_y"};
+        "Contact shape", "param", "apply_contact_transformation_tilt_y"};
 
     int_default_map["n_threads"] = 0;
     help_map["n_threads"] = {
@@ -450,8 +498,8 @@ int main(int argc, char* argv[])
     bool_default_map["write_surface_lithology"] = false;
     help_map["write_surface_lithology"] = {
         "bool", "false", "Write lithology IDs exposed at the surface.",
-        "Written initially, at scheduled iterations, and for the final "
-        "surface in diagnostics_write_output_format.",
+        "Written as exact-value GeoTIFFs initially, at scheduled iterations, "
+        "and for the final surface; the diagnostic PNG setting does not apply.",
         "Outputs", "switch", ""};
     string_default_map["intermediate_surface_lithology_write_path"] = "";
     help_map["intermediate_surface_lithology_write_path"] = {
@@ -460,9 +508,9 @@ int main(int argc, char* argv[])
 
     bool_default_map["write_surface_erodibility"] = false;
     help_map["write_surface_erodibility"] = {
-        "bool", "false", "Write erodibility exposed at the surface.",
-        "Written initially, at scheduled iterations, and for the final "
-        "surface in diagnostics_write_output_format.",
+        "bool", "false", "Deprecated; surface erodibility rasters are not written.",
+        "Retained for driver-file compatibility. Surface lithology IDs are "
+        "written as exact-value GeoTIFFs when enabled.",
         "Outputs", "switch", ""};
     string_default_map["intermediate_surface_erodibility_write_path"] = "";
     help_map["intermediate_surface_erodibility_write_path"] = {
@@ -559,12 +607,23 @@ int main(int argc, char* argv[])
                 "uplift_rate must be finite");
         require(std::isfinite(ff.at("baselevel_elevation")),
                 "baselevel_elevation must be finite");
-        if (bf.at("run_contact_sine_x"))
+        if (bf.at("apply_contact_transformation_sine_x"))
             require(ff.at("contact_sine_x_wavelength_metres") > 0.0f,
                     "contact_sine_x_wavelength_metres must be positive");
-        if (bf.at("run_contact_sine_y"))
+        if (bf.at("apply_contact_transformation_sine_y"))
             require(ff.at("contact_sine_y_wavelength_metres") > 0.0f,
                     "contact_sine_y_wavelength_metres must be positive");
+        for (const char* axis : {"x", "y"})
+        {
+            for (const char* transformation : {"sine", "tilt"})
+            {
+                const std::string prefix = std::string("contact_") +
+                    transformation + "_" + axis;
+                require(ff.at(prefix + "_min_coordinate_metres") <=
+                            ff.at(prefix + "_max_coordinate_metres"),
+                        prefix + " minimum coordinate must not exceed maximum");
+            }
+        }
     }
     catch (const std::exception& e)
     {
@@ -591,10 +650,14 @@ int main(int argc, char* argv[])
         if (!sf.at("cross_section_cols").empty())
             cross_section_cols = parser.parse_int_vector("cross_section_cols");
         require(!lithology_ids.empty(), "lithology_ids must contain at least one ID");
-        require(lithology_erodibilities.size() == lithology_ids.size(),
-                "lithology_erodibilities must have one value per lithology ID");
+        require(!lithology_erodibilities.empty(),
+                "lithology_erodibilities must contain at least one value");
         require(lithology_contact_depths.size() + 1 == lithology_ids.size(),
                 "lithology_contact_depths must contain N-1 values");
+        for (int id : lithology_ids)
+            require(id >= 0 && static_cast<std::size_t>(id) <
+                    lithology_erodibilities.size(),
+                    "each lithology_ids entry must be a valid zero-based index into lithology_erodibilities");
         for (float k : lithology_erodibilities)
             require(std::isfinite(k) && k > 0.0f,
                     "lithology erodibilities must be finite and positive");
@@ -689,18 +752,28 @@ int main(int argc, char* argv[])
     lsdtt::lsdtt_lithology_cuboid_cpu lithology(
         current, std::move(lithology_ids), std::move(lithology_erodibilities),
         std::move(lithology_contact_depths));
-    if (bf.at("run_contact_sine_x"))
+    if (bf.at("apply_contact_transformation_sine_x"))
         lithology.apply_sine_x(ff.at("contact_sine_x_wavelength_metres"),
                                ff.at("contact_sine_x_phase_radians"),
-                               ff.at("contact_sine_x_amplitude_metres"));
-    if (bf.at("run_contact_sine_y"))
+                               ff.at("contact_sine_x_amplitude_metres"),
+                               ff.at("contact_sine_x_min_coordinate_metres"),
+                               ff.at("contact_sine_x_max_coordinate_metres"));
+    if (bf.at("apply_contact_transformation_sine_y"))
         lithology.apply_sine_y(ff.at("contact_sine_y_wavelength_metres"),
                                ff.at("contact_sine_y_phase_radians"),
-                               ff.at("contact_sine_y_amplitude_metres"));
-    if (bf.at("run_contact_tilt_x"))
-        lithology.apply_linear_x(ff.at("contact_tilt_x_gradient"));
-    if (bf.at("run_contact_tilt_y"))
-        lithology.apply_linear_y(ff.at("contact_tilt_y_gradient"));
+                               ff.at("contact_sine_y_amplitude_metres"),
+                               ff.at("contact_sine_y_min_coordinate_metres"),
+                               ff.at("contact_sine_y_max_coordinate_metres"));
+    if (bf.at("apply_contact_transformation_tilt_x"))
+        lithology.apply_linear_x(
+            ff.at("contact_tilt_x_gradient"),
+            ff.at("contact_tilt_x_min_coordinate_metres"),
+            ff.at("contact_tilt_x_max_coordinate_metres"));
+    if (bf.at("apply_contact_transformation_tilt_y"))
+        lithology.apply_linear_y(
+            ff.at("contact_tilt_y_gradient"),
+            ff.at("contact_tilt_y_min_coordinate_metres"),
+            ff.at("contact_tilt_y_max_coordinate_metres"));
 
     const auto format = lsdtt::resolve_raster_output_format(
         sf.at("write_output_format"));
@@ -769,35 +842,6 @@ int main(int argc, char* argv[])
         if (path.back() != '/' && path.back() != '\\') path += '/';
         return path + parser.get_write_fname() + frame + suffix + extension;
     };
-    auto write_formatted_diagnostic = [&](
-        const std::vector<float>& data,
-        const lsdtt::lsdtt_raster_meta& raster_meta,
-        const std::string& path,
-        const std::string& output_format)
-    {
-        const bool is_png_path = path.size() >= 4 &&
-            path.substr(path.size() - 4) == ".png";
-        const std::string cog_path = is_png_path
-            ? path.substr(0, path.size() - 4) + ".tif" : path;
-        if (output_format == "cog")
-            loader.write_full(data, raster_meta, cog_path,
-                              lsdtt::raster_output_format::cog);
-        if (output_format == "png" || output_format == "both")
-        {
-            const std::string png_path = is_png_path ? path :
-                path.substr(0, path.size() - 4) + ".png";
-            loader.write_full(data, raster_meta, png_path,
-                              lsdtt::raster_output_format::png);
-            if (!bf.at("write_intermediate_png_sidecars"))
-            {
-                std::remove((png_path + ".aux.xml").c_str());
-                std::remove((png_path.substr(0, png_path.size() - 4) +
-                             ".pgw").c_str());
-                std::remove((png_path.substr(0, png_path.size() - 4) +
-                             ".wld").c_str());
-            }
-        }
-    };
     auto write_diagnostics = [&](const lsdtt::lsdtt_raster_cpu& raster,
                                  const std::string& frame,
                                  double cumulative_uplift)
@@ -815,53 +859,23 @@ int main(int argc, char* argv[])
             std::remove((path.substr(0, path.size() - 4) + ".pgw").c_str());
             std::remove((path.substr(0, path.size() - 4) + ".wld").c_str());
         };
-        if (bf.at("write_surface_lithology") ||
-            bf.at("write_surface_erodibility"))
+        if (bf.at("write_surface_lithology"))
         {
             const auto depth = depth_from_surface(
                 raster, cumulative_uplift, ff.at("baselevel_elevation"),
                 ff.at("depth_zero_offset_metres"));
-            if (bf.at("write_surface_lithology"))
-            {
-                const auto ids = lithology.lithology_at_depth(depth);
-                std::vector<float> data(ids.size(),
-                    static_cast<float>(raster.get_meta().no_data_value));
-                for (std::size_t i = 0; i < ids.size(); ++i)
-                    if (raster.get_mask()[i] != 0)
-                        data[i] = static_cast<float>(ids[i]);
-                const std::string extension =
-                    (diag_format == "png") ? ".png" : ".tif";
-                const std::string path = diagnostic_path(
-                    sf.at("intermediate_surface_lithology_write_path"),
-                    frame, "_surface_lithology", extension);
-                write_formatted_diagnostic(
-                    data, raster.get_meta(), path, diag_format);
-                if (diag_format == "png" || diag_format == "both")
-                {
-                    const std::string png_path = diagnostic_path(
-                        sf.at("intermediate_surface_lithology_write_path"),
-                        frame, "_surface_lithology", ".png");
-                    write_png_sidecars(png_path);
-                }
-            }
-            if (bf.at("write_surface_erodibility"))
-            {
-                const auto data = lithology.erodibility_at_depth(depth);
-                const std::string extension =
-                    (diag_format == "png") ? ".png" : ".tif";
-                const std::string path = diagnostic_path(
-                    sf.at("intermediate_surface_erodibility_write_path"),
-                    frame, "_surface_erodibility", extension);
-                write_formatted_diagnostic(
-                    data, raster.get_meta(), path, diag_format);
-                if (diag_format == "png" || diag_format == "both")
-                {
-                    const std::string png_path = diagnostic_path(
-                        sf.at("intermediate_surface_erodibility_write_path"),
-                        frame, "_surface_erodibility", ".png");
-                    write_png_sidecars(png_path);
-                }
-            }
+            const auto ids = lithology.lithology_at_depth(depth);
+            std::vector<float> data(ids.size(),
+                static_cast<float>(raster.get_meta().no_data_value));
+            for (std::size_t i = 0; i < ids.size(); ++i)
+                if (raster.get_mask()[i] != 0)
+                    data[i] = static_cast<float>(ids[i]);
+            const std::string path = diagnostic_path(
+                sf.at("intermediate_surface_lithology_write_path"),
+                frame, "_surface_lithology", ".tif");
+            loader.write_full(data, raster.get_meta(), path,
+                              lsdtt::raster_output_format::cog,
+                              lsdtt::lsdtt_pixel_type::int32);
         }
         if (hill_format != "none")
         {
@@ -965,51 +979,68 @@ int main(int argc, char* argv[])
             const fs::path path = csv_directory /
                 (parser.get_write_fname() + frame + "_cross_section_" + axis +
                  std::to_string(index) + ".csv");
-            std::ofstream csv(path, std::ios::app);
+            const bool append = starting_iteration > 0;
+            const bool has_file = fs::exists(path);
+            std::ofstream csv(path, append ? std::ios::app : std::ios::trunc);
             if (!csv)
                 throw std::runtime_error(
                     "Could not open cross-section CSV: " + path.string());
 
-            if (csv.tellp() == 0)
+            if (!append || !has_file)
                 csv << "iteration,row,col,distance,elevation,contact_elevation,"
                        "type,lithology_ID_above,lithology_ID_below,"
-                       "erodibility_above,erodibility_below\n";
+                       "erodibility_above,erodibility_below,contact_ID\n";
             const int count = is_row ? meta.n_cols : meta.n_rows;
-            for (int along = 0; along < count; ++along)
+            // Emit contact-major data: all sampled locations for contact 0,
+            // then contact 1, etc. The surface is a boundary with contact_ID 0.
+            for (int contact_order = -1;
+                 contact_order < static_cast<int>(lithology.contact_count());
+                 ++contact_order)
             {
-                const int row = is_row ? index : along;
-                const int col = is_row ? along : index;
-                const std::size_t pixel = static_cast<std::size_t>(row) *
-                    static_cast<std::size_t>(meta.n_cols) +
-                    static_cast<std::size_t>(col);
-                const double distance = (static_cast<double>(along) + 0.5) * cell;
-                const bool valid = mask[pixel] != 0 &&
-                                   std::isfinite(elevation[pixel]);
-                const double surface = valid ? elevation[pixel] : nodata;
-                const double surface_depth = valid
-                    ? std::max(0.0, cumulative_uplift +
-                        ff.at("depth_zero_offset_metres") -
-                        (surface - baselevel))
-                    : nodata;
-
-                const auto& contacts = lithology.contact_depths();
-                std::size_t surface_layer = 0;
-                if (valid)
-                    while (surface_layer < contacts.size() &&
-                           surface_depth >= contacts[surface_layer][pixel])
-                        ++surface_layer;
-                const int surface_lithology = valid
-                    ? lithology.lithology_ids()[surface_layer] : 0;
-                const double relative_surface = valid ? surface - baselevel : nodata;
-                const float surface_erodibility = valid
-                    ? lithology.erodibilities()[surface_layer]
-                    : static_cast<float>(nodata);
-                csv << iteration << ',' << row << ',' << col << ',' << distance
-                    << ',' << relative_surface << ",,surface,"
-                    << surface_lithology << ',' << surface_lithology << ','
-                    << surface_erodibility << ',' << surface_erodibility << '\n';
-                for (std::size_t contact = 0; contact < contacts.size(); ++contact)
+                for (int along = 0; along < count; ++along)
                 {
+                    const int row = is_row ? index : along;
+                    const int col = is_row ? along : index;
+                    const std::size_t pixel = static_cast<std::size_t>(row) *
+                        static_cast<std::size_t>(meta.n_cols) +
+                        static_cast<std::size_t>(col);
+                    const double distance = (static_cast<double>(along) + 0.5) * cell;
+                    const bool valid = mask[pixel] != 0 &&
+                                       std::isfinite(elevation[pixel]);
+                    const double surface = valid ? elevation[pixel] : nodata;
+                    const double surface_depth = valid
+                        ? std::max(0.0, cumulative_uplift +
+                            ff.at("depth_zero_offset_metres") -
+                            (surface - baselevel))
+                        : nodata;
+                    const auto& contacts = lithology.contact_depths();
+                    std::size_t surface_layer = 0;
+                    if (valid)
+                        while (surface_layer < contacts.size() &&
+                               surface_depth >= contacts[surface_layer][pixel])
+                            ++surface_layer;
+                    const int surface_lithology = valid
+                        ? lithology.lithology_ids()[surface_layer] : 0;
+                    const double relative_surface = valid
+                        ? surface - baselevel : nodata;
+                    const float surface_erodibility = valid
+                        ? lithology.erodibilities()[static_cast<std::size_t>(
+                            lithology.lithology_ids()[surface_layer])]
+                        : static_cast<float>(nodata);
+
+                    if (contact_order == -1)
+                    {
+                        csv << iteration << ',' << row << ',' << col << ','
+                            << distance << ',' << relative_surface << ','
+                            << relative_surface << ",surface,"
+                            << surface_lithology << ',' << surface_lithology << ','
+                            << surface_erodibility << ',' << surface_erodibility
+                            << ",0\n";
+                        continue;
+                    }
+
+                    const std::size_t contact =
+                        static_cast<std::size_t>(contact_order);
                     const double z = valid
                         ? baselevel + cumulative_uplift +
                             ff.at("depth_zero_offset_metres") -
@@ -1021,8 +1052,11 @@ int main(int argc, char* argv[])
                         << relative_contact << ",contact,"
                         << lithology.lithology_ids()[contact] << ','
                         << lithology.lithology_ids()[contact + 1] << ','
-                        << lithology.erodibilities()[contact] << ','
-                        << lithology.erodibilities()[contact + 1] << '\n';
+                        << lithology.erodibilities()[static_cast<std::size_t>(
+                            lithology.lithology_ids()[contact])] << ','
+                        << lithology.erodibilities()[static_cast<std::size_t>(
+                            lithology.lithology_ids()[contact + 1])] << ','
+                        << (contact + 1) << '\n';
                 }
             }
         };
