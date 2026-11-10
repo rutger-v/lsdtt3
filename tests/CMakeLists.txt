@@ -2084,7 +2084,7 @@ add_lsdtt_cli_smoke_test(
 # =============================================================================
 # lsdtt-advection-diffusion
 #
-# No test until 2026-10-14. The CLI generates its own red-noise surface, so it
+# The CLI generates its own red-noise surface, so it
 # needs no input data. With random_seed and n_threads fixed the outputs are
 # byte-identical between runs and across thread counts (checked for 1, 4 and
 # 0), so the surfaces are pinned by hash.

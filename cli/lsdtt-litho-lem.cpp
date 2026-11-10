@@ -815,22 +815,27 @@ int main(int argc, char* argv[])
     }
 
     // -------------------------------------------------------------------------
-    // Step 4 - Fill the initial surface and set baselevel boundaries
+    // Step 4 - Set baselevel boundaries, then fill the initial surface
     // -------------------------------------------------------------------------
     // Not when resuming: the resumed grid is mid-run, and filling it again
     // makes a resumed run diverge from an uninterrupted one (by metres, on the
     // smoke-test grid). smoke_advection_diffusion_resume pins the equality.
-    if (bf.at("fill_initial_surface") && starting_iteration == 0)
-    {
-        current = lsdtt::fill_pits(
-            current, 0.0001f, sf.at("boundary_conditions"),
-            ifs.at("n_threads"));
-    }
     const std::vector<std::int64_t> boundary_flats =
         lsdtt::build_boundary_flats(current, sf.at("boundary_conditions"));
     for (const auto flat : boundary_flats)
         current.get_data()[static_cast<std::size_t>(flat)] =
             ff.at("baselevel_elevation");
+    if (bf.at("fill_initial_surface") && starting_iteration == 0)
+    {
+        current = lsdtt::fill_pits(
+            current, 0.0001f, sf.at("boundary_conditions"),
+            ifs.at("n_threads"));
+        // Filling can modify edge elevations, so restore the prescribed
+        // baselevel after the fill as well.
+        for (const auto flat : boundary_flats)
+            current.get_data()[static_cast<std::size_t>(flat)] =
+                ff.at("baselevel_elevation");
+    }
 
     auto diagnostic_path = [&](const std::string& directory,
                                const std::string& frame,
