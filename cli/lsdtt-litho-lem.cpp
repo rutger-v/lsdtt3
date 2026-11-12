@@ -401,6 +401,15 @@ int main(int argc, char* argv[])
         "bool", "true", "Enable linear ADI hillslope diffusion.", "",
         "Process switches", "switch", ""};
 
+    bool_default_map["allow_unresolved_sinks_or_flats"] = false;
+    help_map["allow_unresolved_sinks_or_flats"] = {
+        "bool", "false",
+        "Allow unresolved D8 sinks or flats to act as outlets.",
+        "Only applies to D8 flow routing. Enable for evolving surfaces that "
+        "may develop local sinks or flats; cells without a downslope receiver "
+        "are treated as outlets instead of stopping the run.",
+        "Process switches", "switch", ""};
+
     string_default_map["hillslope_model"] = "adi";
     help_map["hillslope_model"] = {
         "string", "adi", "Hillslope model; only adi is supported.",
@@ -700,6 +709,8 @@ int main(int argc, char* argv[])
     options.enable_dinf_fluvial_erosion =
         sf.at("fluvial_incision_model") == "dinf";
     options.enable_hillslope_transport = bf.at("enable_hillslope_transport");
+    options.allow_unresolved_sinks_or_flats =
+        bf.at("allow_unresolved_sinks_or_flats");
     options.enable_uplift = true;
     options.boundary_conditions = sf.at("boundary_conditions");
     options.n_threads = ifs.at("n_threads");
@@ -922,7 +933,8 @@ int main(int argc, char* argv[])
                 lsdtt::lsdtt_flowinfo_options flow_options;
                 flow_options.boundary_conditions = sf.at("boundary_conditions");
                 flow_options.build_s_vector = false;
-                flow_options.allow_pits_as_outlets = false;
+                flow_options.allow_pits_as_outlets =
+                    bf.at("allow_unresolved_sinks_or_flats");
                 flow_options.n_threads = ifs.at("n_threads");
                 lsdtt::lsdtt_flowinfo flow(
                     raster.get_data_array(), raster.get_mask_array(),
